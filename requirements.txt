@@ -21,9 +21,9 @@ setuptools==70.2.0
 soupsieve==2.8
 sympy==1.14.0
 tokenizers==0.22.1
-torch==2.9.0+cpu
-torchaudio==2.9.0+cpu
-torchvision==0.24.0+cpu
+torch==2.9.0
+torchaudio==2.9.0
+torchvision==0.24.0
 tqdm==4.67.1
 transformers==4.57.1
 typing_extensions==4.15.0
