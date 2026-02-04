@@ -38,7 +38,7 @@ CACHE_DIR = "./cache_finbert"
 RESULTS_DIR = "./results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 # cache = Cache(CACHE_DIR)
-SAVE_EACH_RESULT = True  # whether to save each doc result separately
+SAVE_EACH_RESULT = False  # whether to save each doc result separately
 
 
 
@@ -133,7 +133,7 @@ def finbert_predict(text: str) -> Tuple[np.ndarray, Dict[str, float]]:
 # ------------------------
 # Processing one document
 # ------------------------
-def process_single_document(doc_id: str, text: str, file_name: str = None, use_compression_fallback=True) -> Dict[str, Any]:
+def process_single_document(text: str) -> Dict[str, Any]:
     """
     Process one report: chunk -> (optionally compress) -> FinBERT -> aggregate.
     Returns a dict with chunk-level and aggregated results.
@@ -187,9 +187,8 @@ def process_single_document(doc_id: str, text: str, file_name: str = None, use_c
     agg_label = labels[int(np.argmax(agg_probs))]
 
     result = {
-        "doc_id": doc_id,
         "n_chunks": len(chunk_results),
-        "chunks": chunk_results,
+        # "chunks": chunk_results,
         "agg_probs": agg_probs.tolist(),
         "agg_label": agg_label
     }

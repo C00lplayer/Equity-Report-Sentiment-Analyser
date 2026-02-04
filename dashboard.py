@@ -2,6 +2,19 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import time
+from sentence_model import process_single_document, results_to_dataframe
+from text_extracter import get_reports, get_article_text
+
+
+# Motley fool = data base error
+# Buy hold sell =  either database error or not saved as BHS
+# Livewire = cannot be scraped need to change scraper
+# Money of mine = cloudscraper needed
+# Morningstar = Selenium needed (scraper not working)
+# Ord Minnett = scraper not working 
+
+
+
 
 
 report_sources = {
@@ -12,8 +25,13 @@ report_sources = {
     "Money of Mine": "money_of_mine",
     "Morningstar": "morningstar",
     "Ord Minnett": "ord_minnet",
-    "Wilson Advisory": "wilson_advisory",
+    "Wilson Advisory": "wilsonsadvisory",
 }
+def get_key_by_value(d, value):
+    for k, v in d.items():
+        if v == value:
+            return k
+    return None  # if not found
 
 
 
@@ -37,10 +55,14 @@ with tab_pre_scraped:
 
     ticker = st.text_input('Select a Ticker, e.g., CBA, BHP, TLS')
     ticker_clean = ticker.strip().upper() if ticker else ""
+    ASX_200 = st.checkbox('Is the ticker part of ASX 200?')
+
 
     year = st.multiselect('Select Year, e.g., 2023, 2022 (optional)', options=list(range(2026, 2019, -1)))
     year_selected_flag = len(year) > 0
 
+
+    st.warning('As of right now only the following sources are supported: Bell Potter, Wilson Advisory.')
     selected_label = st.multiselect(
     "Select report source:",
     list(report_sources.keys()))
@@ -48,15 +70,22 @@ with tab_pre_scraped:
     source_selected_flag = len(selected_source_value) > 0
 
 
+
+
     # change to normal button state management once loading bar option is choosen
     if "analyze_clicked" not in st.session_state:
         st.session_state.analyze_clicked = False
 
+    if "analysis_results" not in st.session_state:
+        st.session_state.analysis_results = []
+
+    if "num_results_to_show" not in st.session_state:
+        st.session_state.num_results_to_show = 5
+
+
     if st.button("Analyze Selected Report"):
         st.session_state.analyze_clicked = True
-        st.session_state.num_results_to_show = 5  # reset pagination on new analysis
-
-    if st.session_state.analyze_clicked:
+        st.session_state.num_results_to_show = 5  # reset pagination
 
         # Validation
         if not ticker_clean:
@@ -70,144 +99,55 @@ with tab_pre_scraped:
             # show selected filters
             st.write(f"Year(s): {year if year_selected_flag else 'All'}")
             st.write(f"Source(s): {', '.join(selected_label) if source_selected_flag else 'All'}")
+            #if "Bell Potter" in selected_label:
+            bar = st.progress(0)
+            reports = get_reports(ticker_clean, year=year if year_selected_flag else None, source=selected_source_value if source_selected_flag else None, ASX_200=ASX_200)
+            if reports:
+                results = []
+                for i, report in enumerate(reports):
+                    report_text = get_article_text(report["url"], source=report["source"])
+                    report_sentiment = process_single_document(text=report_text)
+                    report["sentiment"] = {
+                        "neg": report_sentiment["agg_probs"][0],
+                        "neu": report_sentiment["agg_probs"][1],
+                        "pos": report_sentiment["agg_probs"][2],
+                    }
+                    results.append(
+                        {"year": report["year"],
+                            "source": get_key_by_value(report_sources, report["source"]),
+                            "ticker": report["ticker"],
+                            "link": report["url"],
+                            "industry": report["industry"],
+                            "team_industry": report["investment_team_industry"],
+                            "sentiment": report["sentiment"]}
+                    )
+                    bar.progress((i + 1) / len(reports))
 
-            option_1= st.button("option 1")
-            option_2= st.button("option 2")
-            actual_output = st.button("Actual_Output")
-
-            if option_1:
-                with st.spinner(text="In progress"):
-                    time.sleep(3)
-                    st.success("Done")
-                
-                with st.status("Authenticating...") as s:
-                    time.sleep(2)
-                    st.write("Some long response.")
-                    s.update(label="Successfully authenticated!")
-                time.sleep(1)
-                    
-                # Placeholder for your analysis logic
+                st.session_state.analysis_results = sorted(results, key=lambda x: (-x["year"], x["source"]))
                 st.success("Sentiment analysis completed!")
-                st.write("Positive: 70%")
-                st.write("Neutral: 20%")
-                st.write("Negative: 10%")
-
-            if option_2:
-                # Show and update progress bar
-                bar = st.progress(0)
-                for percent_complete in range(100):
-                    time.sleep(0.01)
-                    bar.progress(percent_complete + 1)
-
-                with st.status("Authenticating...") as s:
-                    time.sleep(2)
-                    st.write("Some long response.")
-                    s.update(label="Successfully authenticated!")
+            else:
+                st.warning("No reports found for the selected criteria.")
+                st.session_state.analysis_results = []
                 
-                time.sleep(1)
-                    
-                # Placeholder for your analysis logic
-                
-                st.success("Sentiment analysis completed!")
-                st.write("Positive: 70%")
-                st.write("Neutral: 20%")
-                st.write("Negative: 10%")
+    if st.session_state.analyze_clicked and st.session_state.analysis_results:
+        results_to_show = st.session_state.analysis_results[:st.session_state.num_results_to_show]
 
-            if actual_output:
-                st.success("Sentiment analysis completed!")
-                example_reports = [
-                {
-                    "year": 2023,
-                    "source": "Bell Potter",
-                    "ticker": "CBA",
-                    "link": "https://example.com/report1",
-                    "industry": "Banking",
-                    "team_industry": "Financial Services",
-                    "sentiment": {"pos": 0.7, "neu": 0.2, "neg": 0.1}
-                },
-                {
-                    "year": 2023,
-                    "source": "Morningstar",
-                    "ticker": "BHP",
-                    "link": "https://example.com/report2",
-                    "industry": "Mining",
-                    "team_industry": "Resources",
-                    "sentiment": {"pos": 0.4, "neu": 0.3, "neg": 0.3}
-                },
-                {
-                    "year": 2022,
-                    "source": "Motley Fool",
-                    "ticker": "TLS",
-                    "link": "https://example.com/report3",
-                    "industry": "Telecommunications",
-                    "team_industry": "Tech & Comms",
-                    "sentiment": {"pos": 0.6, "neu": 0.2, "neg": 0.2}
-                },
-                {
-                    "year": 2022,
-                    "source": "Wilson Advisory",
-                    "ticker": "CBA",
-                    "link": "https://example.com/report4",
-                    "industry": "Banking",
-                    "team_industry": "Financial Services",
-                    "sentiment": {"pos": 0.3, "neu": 0.5, "neg": 0.2}
-                },
-                {
-                    "year": 2021,
-                    "source": "Buy Hold Sell",
-                    "ticker": "BHP",
-                    "link": "https://example.com/report5",
-                    "industry": "Mining",
-                    "team_industry": "Resources",
-                    "sentiment": {"pos": 0.5, "neu": 0.4, "neg": 0.1}
-                },
-                {
-                    "year": 2021,
-                    "source": "Buy Hold Sell",
-                    "ticker": "BHP",
-                    "link": "https://example.com/report5",
-                    "industry": "Mining",
-                    "team_industry": "Resources",
-                    "sentiment": {"pos": 0.5, "neu": 0.4, "neg": 0.1}
-                },
-                {
-                    "year": 2021,
-                    "source": "Buy Hold Sell",
-                    "ticker": "BHP",
-                    "link": "https://example.com/report5",
-                    "industry": "Mining",
-                    "team_industry": "Resources",
-                    "sentiment": {"pos": 0.5, "neu": 0.4, "neg": 0.1}
-                },
-                {
-                    "year": 2021,
-                    "source": "Buy Hold Sell",
-                    "ticker": "BHP",
-                    "link": "https://example.com/report5",
-                    "industry": "Mining",
-                    "team_industry": "Resources",
-                    "sentiment": {"pos": 0.5, "neu": 0.4, "neg": 0.1}
-                }]
+        for report in results_to_show:
+            with st.expander(f"{report['year']} - {report['source']} - {report['ticker']}"):
+                st.markdown(f"[Original Report]({report['link']})")
+                st.write(f"Industry: {report['industry']}")
+                st.write(f"Investment Team Industry: {report['team_industry']}")
+                st.write(
+                    f"Sentiment: Pos: {report['sentiment']['pos']*100:.1f}%, "
+                    f"Neu: {report['sentiment']['neu']*100:.1f}%, "
+                    f"Neg: {report['sentiment']['neg']*100:.1f}%"
+                )
 
-                example_reports_sorted = sorted(example_reports, key=lambda x: (-x["year"], x["source"]))
+        # Show more button
+        if st.session_state.num_results_to_show < len(st.session_state.analysis_results):
+            if st.button("Show more", key="show_more"):
+                st.session_state.num_results_to_show += 10
 
-                # Display the first n results
-                for report in example_reports_sorted[:st.session_state.num_results_to_show]:
-                    with st.expander(f"{report['year']} - {report['source']} - {report['ticker']}"):
-                        st.markdown(f"[Original Report]({report['link']})")
-                        st.write(f"Industry: {report['industry']}")
-                        st.write(f"Investment Team Industry: {report['team_industry']}")
-                        st.write(
-                            f"Sentiment: Pos: {report['sentiment']['pos']*100:.1f}%, "
-                            f"Neu: {report['sentiment']['neu']*100:.1f}%, "
-                            f"Neg: {report['sentiment']['neg']*100:.1f}%"
-                        )
-
-                # Show more button
-                if st.session_state.num_results_to_show < len(example_reports_sorted):
-                    show_more = st.button("Show more", key="show_more")  # key ensures unique widget
-                    if show_more:
-                        st.session_state.num_results_to_show += 10
 
 
 with tab_new_reports:
