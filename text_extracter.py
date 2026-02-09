@@ -42,11 +42,13 @@ def get_reports(ticker, year=None, source=None, ASX_200: int = True):
 
 
 def get_article_text(url, source: str):
+    print(source)
 
-    if source in ["bell_potter","Buy_hold_sell","motely_fool", "live_wire", "ord_minet","wilsonsadvisory", "morningstar"]:
+    if source in ["bell_potter","Buy_hold_sell","motely_fool", "live_wire", "ord_minnet","wilsonsadvisory", "morningstar"]:
         session = requests.Session()
         session.headers.update(HEADERS)
         r = session.get(url)
+        print("inside get_article_text")
 
         r.raise_for_status()
     """elif source in ["money_of_mine"]:
@@ -72,5 +74,5 @@ def get_article_text(url, source: str):
 #print(get_article_text(get_reports("NAB", year=2025, source="bell_potter", ASX_200=True)[0]["url"], source="bell_potter"))
 
 
-#print(get_article_text("https://www.livewiremarkets.com/wires/is-now-the-time-to-buy-asx-uranium-stocks-analysis-of-the-latest-uranium-technical-and-fundamental-factors"))
-print(get_reports("NAB", source="wilsonsadvisory", ASX_200=True))
+#print(get_article_text("https://www.morningstar.com.au/stocks/have-profits-peaked-for-the-big-four-banks", source="morningstar"))
+#print(get_reports("NAB", source="wilsonsadvisory", ASX_200=True))
