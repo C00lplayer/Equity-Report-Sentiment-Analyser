@@ -42,14 +42,12 @@ def get_reports(ticker, year=None, source=None, ASX_200: int = True):
 
 
 def get_article_text(url, source: str):
-    print(source)
 
     if source in ["bell_potter","Buy_hold_sell","motely_fool", "live_wire", "ord_minnet","wilsonsadvisory", "morningstar"]:
         session = requests.Session()
         session.headers.update(HEADERS)
         r = session.get(url)
-        print("inside get_article_text")
-
+        
         r.raise_for_status()
     """elif source in ["money_of_mine"]:
         scraper = cloudscraper.create_scraper()

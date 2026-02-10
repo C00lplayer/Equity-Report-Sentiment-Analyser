@@ -77,7 +77,7 @@ def process_next_batch(batch_size=10):
         )
 
         bar.progress((i - start + 1) / (end - start))
-        time.sleep(1.5) # Add buffer to avoid overwhelming the server and to simulate processing time
+        time.sleep(2) # Add buffer to avoid overwhelming the server and to simulate processing time
 
     st.session_state.current_index = end
 
@@ -147,6 +147,7 @@ with tab_pre_scraped:
             st.write(f"Source(s): {', '.join(selected_label) if source_selected_flag else 'All'}")
             #if "Bell Potter" in selected_label:
             reports = get_reports(ticker_clean, year=year if year_selected_flag else None, source=selected_source_value if source_selected_flag else None, ASX_200=ASX_200)
+            reports = sorted(reports, key=lambda x: (-x["year"], x["source"]))
             if reports:
                 st.write(f"Found {len(reports)} report(s) matching the criteria.")
                 st.session_state.all_reports = reports
