@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 import streamlit as st
+import os
 #from sentence_model import process_single_document, results_to_dataframe
 
 HEADERS = {
@@ -15,8 +16,8 @@ HEADERS = {
 }
 
 # Insert your Supabase URL and Key here
-url = ""
-key = ""
+url = os.environ.get("SUPABASE_URL", "https://lshtgdpdskhqqxdcwpjo.supabase.co")
+key = os.environ.get("SUPABASE_KEY","")
 supabase = create_client(url, key)
 
 def get_reports(ticker, year=None, source=None, ASX_200: int = True):
