@@ -96,7 +96,7 @@ with tab_pre_scraped:
     year_selected_flag = len(year) > 0
 
 
-    st.warning('As of right now only the following sources are supported: Bell Potter, Wilson Advisory.')
+    st.warning('As of right now only the following sources are supported: Bell Potter, Wilson Advisory, Ord Minnett, Morningstar.')
     selected_label = st.multiselect(
     "Select report source:",
     list(report_sources.keys()))
@@ -177,7 +177,7 @@ with tab_pre_scraped:
         if st.session_state.current_index < len(st.session_state.all_reports):
             if st.button("Show more"):
                 process_next_batch(10)
-                st.rerun()
+                #st.rerun()
                 
         """
         results_to_show = st.session_state.analysis_results[:st.session_state.num_results_to_show]
