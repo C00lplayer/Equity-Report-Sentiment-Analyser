@@ -154,13 +154,11 @@ def process_single_document(text: str) -> Dict[str, Any]:
     # If some chunks still exceed token length (rare), try compression
     final_chunks = []
     for ch in chunks:
-        if tokens_length(ch) > TARGET_TOKENS:
-            # force split
-            words = ch.split()
-            for i in range(0, len(words), TARGET_TOKENS*4):
-                final_chunks.append(" ".join(words[i:i+TARGET_TOKENS*4]))
-        else:
-            final_chunks.append(ch)
+        encoded = tokenizer.encode(ch, add_special_tokens=True)
+        for i in range(0, len(encoded), TARGET_TOKENS):
+            chunk_tokens = encoded[i:i+TARGET_TOKENS]
+            chunk_text = tokenizer.decode(chunk_tokens, skip_special_tokens=True)
+            final_chunks.append(chunk_text)
 
     # Run FinBERT on chunks
     chunk_results = []

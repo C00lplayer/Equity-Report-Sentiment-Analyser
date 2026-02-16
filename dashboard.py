@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import time
 from sentence_model import process_single_document, results_to_dataframe
-from text_extracter import get_reports, get_article_text
+from text_extracter import get_reports, get_article_text, get_GPFS_reports, extract_text_from_GPFS, clean_GPFS_text
 
 
 # Motley fool = data base error
@@ -46,8 +46,8 @@ tab_pre_scraped, tab_new_reports = st.tabs([
 ])
 
 
-def process_next_batch(batch_size=10):
-    start = st.session_state.current_index
+def process_next_report_batch(batch_size=10):
+    start = st.session_state.current_report_index
     end = min(start + batch_size, len(st.session_state.all_reports))
 
     bar = st.progress(0)
@@ -64,7 +64,7 @@ def process_next_batch(batch_size=10):
             "pos": report_sentiment["agg_probs"][2],
         }
 
-        st.session_state.processed_results.append(
+        st.session_state.processed_report_results.append(
             {
                 "year": report["year"],
                 "source": get_key_by_value(report_sources, report["source"]),
@@ -79,7 +79,43 @@ def process_next_batch(batch_size=10):
         bar.progress((i - start + 1) / (end - start))
         time.sleep(2) # Add buffer to avoid overwhelming the server and to simulate processing time
 
-    st.session_state.current_index = end
+    st.session_state.current_report_index = end
+
+def process_next_batch_GPFS(batch_size=10):
+    start = st.session_state.current_index_GPFS
+    end = min(start + batch_size, len(st.session_state.all_GPFS_reports))
+
+    bar = st.progress(0, text="Processing GPFS reports...")
+
+    for i in range(start, end):
+        report = st.session_state.all_GPFS_reports[i]
+
+        # Assuming you have a similar function to extract GPFS text
+        report_text = extract_text_from_GPFS(report["url"])
+        cleaned_text = clean_GPFS_text(report_text)
+        report_sentiment = process_single_document(text=cleaned_text)
+
+        report["sentiment"] = {
+            "neg": report_sentiment["agg_probs"][0],
+            "neu": report_sentiment["agg_probs"][1],
+            "pos": report_sentiment["agg_probs"][2],
+        }
+
+        st.session_state.processed_GPFS_results.append(
+            {
+                "year": report["year"],
+                "ticker": report["ticker"],
+                "link": report["url"],
+                "sentiment": report["sentiment"],
+            }
+        )
+
+        bar.progress((i - start + 1) / (end - start))
+        time.sleep(2)
+
+    st.session_state.current_index_GPFS = end
+
+
 
 with tab_pre_scraped:
     st.header("Pre-scraped Equity Reports Analysis")
@@ -118,19 +154,29 @@ with tab_pre_scraped:
     
     if "all_reports" not in st.session_state:
         st.session_state.all_reports = []
+    
+    if "all_GPFS_reports" not in st.session_state:
+        st.session_state.all_GPFS_reports = []
 
-    if "processed_results" not in st.session_state:
-        st.session_state.processed_results = []
+    if "processed_report_results" not in st.session_state:
+        st.session_state.processed_report_results = []
 
-    if "current_index" not in st.session_state:
-        st.session_state.current_index = 0
+    if "current_report_index" not in st.session_state:
+        st.session_state.current_report_index = 0
+
+    if 'current_index_GPFS' not in st.session_state:
+        st.session_state.current_index_GPFS = 0
+
+    if 'processed_GPFS_results' not in st.session_state:    
+        st.session_state.processed_GPFS_results = []
+
 
 
     if st.button("Analyze Selected Report"):
         st.session_state.analyze_clicked = True
         st.session_state.num_results_to_show = 5  # reset pagination
-        st.session_state.processed_results = []
-        st.session_state.current_index = 0
+        st.session_state.processed_report_results = []
+        st.session_state.current_report_index = 0
 
 
         # Validation
@@ -145,39 +191,78 @@ with tab_pre_scraped:
             # show selected filters
             st.write(f"Year(s): {year if year_selected_flag else 'All'}")
             st.write(f"Source(s): {', '.join(selected_label) if source_selected_flag else 'All'}")
-            #if "Bell Potter" in selected_label:
+
             reports = get_reports(ticker_clean, year=year if year_selected_flag else None, source=selected_source_value if source_selected_flag else None, ASX_200=ASX_200)
             reports = sorted(reports, key=lambda x: (-x["year"], x["source"]))
-            if reports:
-                st.write(f"Found {len(reports)} report(s) matching the criteria.")
+            GPFS_reports = get_GPFS_reports(ticker_clean, year=year if year_selected_flag else None)
+            GPFS_reports = sorted(GPFS_reports, key=lambda x: (-x["year"]))
+
+            if reports and GPFS_reports:
+                st.write(f"Found {len(reports)} equity report(s) matching the criteria.")
+                st.write(f"Found {len(GPFS_reports)} GPFS report(s) matching the criteria.")
                 st.session_state.all_reports = reports
+                st.session_state.all_GPFS_reports = GPFS_reports
+            elif reports:
+                st.write(f"Found {len(reports)} equity report(s) matching the criteria.")
+                st.write("No GPFS reports found for the selected criteria.")
+                st.session_state.all_reports = reports
+                st.session_state.all_GPFS_reports = []
+            elif GPFS_reports:
+                st.write(f"Found {len(GPFS_reports)} GPFS report(s) matching the criteria.")
+                st.write("No equity reports found for the selected criteria.")
+                st.session_state.all_reports = []
+                st.session_state.all_GPFS_reports = GPFS_reports
             else:
                 st.warning("No reports found for the selected criteria.")
                 st.session_state.all_reports = []
+                st.session_state.all_GPFS_reports = []
     
     
-    if st.session_state.analyze_clicked and st.session_state.all_reports:
+    if st.session_state.analyze_clicked and (st.session_state.all_reports or st.session_state.all_GPFS_reports):
         # Process first batch automatically if nothing processed yet
-        if st.session_state.current_index == 0:
-            process_next_batch(10)
+        if st.session_state.current_report_index == 0 and st.session_state.all_reports:
+            process_next_report_batch(10)
+        if st.session_state.current_index_GPFS == 0 and st.session_state.all_GPFS_reports:
+            process_next_batch_GPFS(10)
         
-        for report in st.session_state.processed_results:
-            with st.expander(f"{report['year']} - {report['source']} - {report['ticker']}"):
-                st.markdown(f"[Original Report]({report['link']})")
-                st.write(f"Industry: {report['industry']}")
-                st.write(f"Investment Team Industry: {report['team_industry']}")
-                st.write(
-                    f"Sentiment: Pos: {report['sentiment']['pos']*100:.1f}%, "
-                    f"Neu: {report['sentiment']['neu']*100:.1f}%, "
-                    f"Neg: {report['sentiment']['neg']*100:.1f}%"
-                )
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.header("Equity Report Sentiment Analysis Results")
+
+            for report in st.session_state.processed_report_results:
+                with st.expander(f"{report['year']} - {report['source']} - {report['ticker']}"):
+                    st.markdown(f"[Original Report]({report['link']})")
+                    st.write(f"Industry: {report['industry']}")
+                    st.write(f"Investment Team Industry: {report['team_industry']}")
+                    st.write(
+                        f"Sentiment: Pos: {report['sentiment']['pos']*100:.1f}%, "
+                        f"Neu: {report['sentiment']['neu']*100:.1f}%, "
+                        f"Neg: {report['sentiment']['neg']*100:.1f}%"
+                    )
 
 
-        # Show more button
-        if st.session_state.current_index < len(st.session_state.all_reports):
-            if st.button("Show more"):
-                process_next_batch(10)
-                #st.rerun()
+            # Show more button
+            if st.session_state.current_report_index < len(st.session_state.all_reports):
+                if st.button("Show more"):
+                    process_next_report_batch(10)
+        
+        with col2:
+            st.header("GPFS Report Sentiment Analysis Results")
+
+            for report in st.session_state.processed_GPFS_results:
+                with st.expander(f"{report['year']} - {report['ticker']}"):
+                    st.markdown(f"[Original Report]({report['link']})")
+                    st.write(
+                        f"Sentiment: Pos: {report['sentiment']['pos']*100:.1f}%, "
+                        f"Neu: {report['sentiment']['neu']*100:.1f}%, "
+                        f"Neg: {report['sentiment']['neg']*100:.1f}%"
+                    )
+
+            # Show more button
+            if st.session_state.current_index_GPFS < len(st.session_state.all_GPFS_reports):
+                if st.button("Show more GPFS"):
+                    process_next_batch_GPFS(10)
                 
         """
         results_to_show = st.session_state.analysis_results[:st.session_state.num_results_to_show]
