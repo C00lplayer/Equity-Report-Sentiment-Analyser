@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import time
-from sentence_model import process_single_document, results_to_dataframe
-from text_extracter import get_reports, get_article_text, get_GPFS_reports, extract_text_from_GPFS, clean_GPFS_text
+from using.sentence_model import process_single_document, results_to_dataframe
+from using.text_extracter import get_reports, get_article_text, get_GPFS_reports, extract_text_from_GPFS, clean_GPFS_text
 
 
 # Motley fool = data base error
