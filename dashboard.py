@@ -38,7 +38,6 @@ st.set_page_config(page_title='Equity Reports Sentiment Analyser Dashboard', lay
 st.title("Equity Reports Sentiment Analyser Dashboard")
 
 st.markdown("This dashboard allows you to analyse sentiment of equity reports using FinBERT model.")
-st.markdown("HELLO")
 
 def process_next_batch(batch_size=10):
     start = st.session_state.current_index
