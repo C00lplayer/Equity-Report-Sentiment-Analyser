@@ -42,8 +42,15 @@ def get_reports(ticker, year=None, source=None, ASX_200: int = True):
 
 
 
+CACHE_REPORT_COLUMNS = ["ticker", "url", "industry", "investment_team_industry", "year", "source"]
+
+
 def get_cached_sentiment(ticker, url):
-    """Look up a previously scored report in the ASX200 sentiment cache table, keyed by ticker + url."""
+    """Look up a previously scored report in the ASX200 sentiment cache table, keyed by ticker + url.
+
+    pos_sent/neu_sent/neg_sent are stored as bigint percentages (0-100), so they're converted back
+    to 0-1 probabilities here so callers always work with the same scale FinBERT produces.
+    """
     result = (
         supabase.table("Equity Reports ASX200_duplicate")
         .select("pos_sent, neu_sent, neg_sent")
@@ -52,15 +59,28 @@ def get_cached_sentiment(ticker, url):
         .limit(1)
         .execute()
     )
-    return result.data[0] if result.data else None
+    if not result.data:
+        return None
+    row = result.data[0]
+    return {
+        "pos_sent": row["pos_sent"] / 100,
+        "neu_sent": row["neu_sent"] / 100,
+        "neg_sent": row["neg_sent"] / 100,
+    }
 
 
 def save_cached_sentiment(report, pos, neu, neg):
-    """Store a scored report's full row plus sentiment scores in the ASX200 sentiment cache table."""
-    row = {k: v for k, v in report.items() if k != "sentiment"}
-    row["pos_sent"] = pos
-    row["neu_sent"] = neu
-    row["neg_sent"] = neg
+    """Store a scored report plus sentiment scores in the ASX200 sentiment cache table.
+
+    Only the columns that exist on the cache table are copied from `report` (it may carry extra
+    columns from the source table's `select("*")` that the cache table doesn't have). pos/neu/neg
+    are 0-1 probabilities from FinBERT; pos_sent/neu_sent/neg_sent are bigint, so they're stored
+    as rounded 0-100 percentages.
+    """
+    row = {col: report[col] for col in CACHE_REPORT_COLUMNS}
+    row["pos_sent"] = round(pos * 100)
+    row["neu_sent"] = round(neu * 100)
+    row["neg_sent"] = round(neg * 100)
     supabase.table("Equity Reports ASX200_duplicate").upsert(row, on_conflict="ticker,url").execute()
 
 
