@@ -42,6 +42,28 @@ def get_reports(ticker, year=None, source=None, ASX_200: int = True):
 
 
 
+def get_cached_sentiment(ticker, url):
+    """Look up a previously scored report in the ASX200 sentiment cache table, keyed by ticker + url."""
+    result = (
+        supabase.table("Equity Reports ASX200_duplicate")
+        .select("pos_sent, neu_sent, neg_sent")
+        .eq("ticker", ticker)
+        .eq("url", url)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def save_cached_sentiment(report, pos, neu, neg):
+    """Store a scored report's full row plus sentiment scores in the ASX200 sentiment cache table."""
+    row = {k: v for k, v in report.items() if k != "sentiment"}
+    row["pos_sent"] = pos
+    row["neu_sent"] = neu
+    row["neg_sent"] = neg
+    supabase.table("Equity Reports ASX200_duplicate").upsert(row, on_conflict="ticker,url").execute()
+
+
 def get_article_text(url, source: str):
 
     if source in ["bell_potter","buy_hold_sell","motley_fool", "live_wire", "ord_minnet","wilsonsadvisory", "morningstar"]:

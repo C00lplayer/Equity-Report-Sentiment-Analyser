@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import time
 from sentence_model import process_single_document, results_to_dataframe
-from text_extracter import get_reports, get_article_text
+from text_extracter import get_reports, get_article_text, get_cached_sentiment, save_cached_sentiment
 
 
 # Motley fool = data base error
@@ -48,14 +48,33 @@ def process_next_batch(batch_size=10):
     for i in range(start, end):
         report = st.session_state.all_reports[i]
 
-        report_text = get_article_text(report["url"], source=report["source"])
-        report_sentiment = process_single_document(text=report_text)
+        cached = get_cached_sentiment(report["ticker"], report["url"]) if st.session_state.search_asx_200 else None
 
-        report["sentiment"] = {
-            "neg": report_sentiment["agg_probs"][0],
-            "neu": report_sentiment["agg_probs"][1],
-            "pos": report_sentiment["agg_probs"][2],
-        }
+        if cached:
+            report["sentiment"] = {
+                "neg": cached["neg_sent"],
+                "neu": cached["neu_sent"],
+                "pos": cached["pos_sent"],
+            }
+        else:
+            report_text = get_article_text(report["url"], source=report["source"])
+            report_sentiment = process_single_document(text=report_text)
+
+            report["sentiment"] = {
+                "neg": report_sentiment["agg_probs"][0],
+                "neu": report_sentiment["agg_probs"][1],
+                "pos": report_sentiment["agg_probs"][2],
+            }
+
+            if st.session_state.search_asx_200:
+                save_cached_sentiment(
+                    report,
+                    pos=report["sentiment"]["pos"],
+                    neu=report["sentiment"]["neu"],
+                    neg=report["sentiment"]["neg"],
+                )
+
+            time.sleep(2) # Add buffer to avoid overwhelming the server and to simulate processing time
 
         st.session_state.processed_results.append(
             {
@@ -70,7 +89,6 @@ def process_next_batch(batch_size=10):
         )
 
         bar.progress((i - start + 1) / (end - start))
-        time.sleep(2) # Add buffer to avoid overwhelming the server and to simulate processing time
 
     st.session_state.current_index = end
 
@@ -118,12 +136,16 @@ if "processed_results" not in st.session_state:
 if "current_index" not in st.session_state:
     st.session_state.current_index = 0
 
+if "search_asx_200" not in st.session_state:
+    st.session_state.search_asx_200 = True
+
 
 if st.button("Analyze Selected Report"):
     st.session_state.analyze_clicked = True
     st.session_state.num_results_to_show = 5  # reset pagination
     st.session_state.processed_results = []
     st.session_state.current_index = 0
+    st.session_state.search_asx_200 = ASX_200
 
 
     # Validation
